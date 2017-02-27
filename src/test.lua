@@ -9,7 +9,7 @@ end
 
 local useFastFlag = false
 local prevFile = nil
-local function visitFuncMain( cursor, parent, exInfo, changeFileFlag )
+local function visitFuncMain( cursor, parent, exInfo )
    -- if changeFileFlag == nil then
    --    local cxfile, line, column, offset = getFileLocation( cursor )
    -- end
@@ -30,19 +30,12 @@ local function visitFuncMain( cursor, parent, exInfo, changeFileFlag )
    	     clang.getCursorKindSpelling( cursorKind ), cursorKind ) )
 
    if not exInfo.curFunc then
-      if changeFileFlag ~= nil then
-   	 if changeFileFlag then
-   	    local cxfile, line = getFileLocation( cursor )
-   	    print( "change file 2:", cxfile and cxfile:getFileName() or "", line )
-   	 end
-      else
-   	 local cxfile, line = getFileLocation( cursor )
-   	 if (cxfile and prevFile and not prevFile:isEqual( cxfile ) ) or
-   	    (cxfile ~= prevFile and (not cxfile or not prevFile))
-   	 then
-   	    print( "change file:", cxfile and cxfile:getFileName() or "", line )
-   	    prevFile = cxfile
-   	 end
+      local cxfile, line = getFileLocation( cursor )
+      if (cxfile and prevFile and not prevFile:isEqual( cxfile ) ) or
+	 (cxfile ~= prevFile and (not cxfile or not prevFile))
+      then
+	 print( "change file:", cxfile and cxfile:getFileName() or "", line )
+	 prevFile = cxfile
       end
    end
 
@@ -75,7 +68,7 @@ local function visitFuncMain( cursor, parent, exInfo, changeFileFlag )
 end
 
 
-local function visitFuncMainFast( cursor, parent, exInfo, changeFileFlag )
+local function visitFuncMainFast( cursor, parent, exInfo, appendInfo )
    -- local cursorKind = cursor:getCursorKind()
    -- local txt = cursor:getCursorSpelling()
    -- print( string.format(
@@ -91,6 +84,7 @@ local function visitFuncMainFast( cursor, parent, exInfo, changeFileFlag )
    	     string.rep( " ", exInfo.depth ), txt, 
    	     clang.getCursorKindSpelling( cursorKind ), cursorKind ) )
 
+   local changeFileFlag = appendInfo[ 1 ]
    if not exInfo.curFunc then
       if changeFileFlag then
    	 local cxfile, line = getFileLocation( cursor )
@@ -104,7 +98,7 @@ local function visitFuncMainFast( cursor, parent, exInfo, changeFileFlag )
       exInfo.curFunc = cursor
       exInfo.depth = exInfo.depth + 1
 
-      local result, list = clang.getChildrenList( cursor, nil )
+      local result, list = clang.getChildrenList( cursor, nil, 1 )
       for index, info in ipairs( list ) do
    	 visitFuncMainFast( info[ 1 ], info[ 2 ], exInfo, info[ 3 ] )
       end
@@ -118,7 +112,7 @@ local function visitFuncMainFast( cursor, parent, exInfo, changeFileFlag )
    then
       exInfo.depth = exInfo.depth + 1
 
-      local result, list = clang.getChildrenList( cursor, nil )
+      local result, list = clang.getChildrenList( cursor, nil, 1 )
       for index, info in ipairs( list ) do
    	 visitFuncMainFast( info[ 1 ], info[ 2 ], exInfo, info[ 3 ] )
       end
@@ -146,9 +140,7 @@ local function dumpCursorTU( transUnit )
    
 
    if useFastFlag then
-      --clang.visitChildrenFast( root, visitFuncMain, { depth = 0 }, nil )
-
-      local result, list = clang.getChildrenList( root, nil )
+      local result, list = clang.getChildrenList( root, nil, 1 )
       for index, info in ipairs( list ) do
       	 visitFuncMainFast( info[ 1 ], info[ 2 ], { depth = 0 }, info[ 3 ] )
       end
