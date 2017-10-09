@@ -11,11 +11,20 @@ if arg[1] == "base" then
 end
 
 local clang
-if load then
+if not loadstring then
    clang = load( baseScrit )()
 else
    clang = loadstring( baseScrit )()
 end
+
+-- gc 時に dispose を実行許可するオブジェクト名の set。
+-- この set のオブジェクト名に登録されていないオブジェクトから生成した場合は、
+-- gc 時に dispose を実行許可しない。
+local isValidDisposeNameSetMap = {
+   CXTranslationUnit = {
+      CXIndex = 1,
+   }
+}
 
 print( "clang= ", clang )
 
@@ -73,7 +82,7 @@ function FuncInfo:getName()
 end
 
 function FuncInfo:addParam( cursor )
-   local typeInfo = clang.core.clang_getCursorType( cursor );
+   local typeInfo = clang.core.clang_getCursorType( cursor )
    local name = clang.cx2string( clang.core.clang_getCursorSpelling( cursor ) )
    if name == "" then
       name = string.format( "_arg%d", #self.paramList )
@@ -344,6 +353,16 @@ local function dumpEnum( classFile, enumList )
    end
 end
 
+local function createNew( targetName, objName, stmt )
+   local validFlag = false
+   local set = isValidDisposeNameSetMap[ objName ] 
+   if (not targetName) or (not set) or set[ targetName ] then
+      validFlag = true
+   end
+   
+   return string.format( "libs.%s:new( %s, %s )", objName, stmt, not validFlag )
+end
+
 local function dumpMethod( classFile, funcMap, targetClassSet )
    
    local class2methodLitMap = {}
@@ -420,7 +439,7 @@ local function dumpMethod( classFile, funcMap, targetClassSet )
 	       if funcInfo.result == "CXString" then
 		  callStmt = "libs.cx2string( " .. callStmt .. " )"
 	       elseif targetClassSet[ funcInfo.result ] then
-		  callStmt = "libs." .. funcInfo.result .. ":new( " .. callStmt .. " )"
+		  callStmt = createNew( targetName, funcInfo.result, callStmt )
 	       end
 	       if string.find( callStmt, "_is%u" ) then
 		  callStmt = string.format( callStmt .. " ~= 0" )
@@ -461,7 +480,7 @@ end
 	    if funcInfo.result == "CXString" then
 	       callStmt = "libs.cx2string( " .. callStmt .. " )"
 	    elseif targetClassSet[ funcInfo.result ] then
-	       callStmt = "libs." .. funcInfo.result .. ":new( " .. callStmt .. " )"
+	       callStmt = createNew( nil, funcInfo.result, callStmt )
 	    end
 	    if string.find( callStmt, "_is%u" ) then
 	       callStmt = string.format( callStmt .. " ~= 0" )
@@ -502,7 +521,8 @@ local function dumpConstructer(
    for className in pairs( targetClassSet ) do
       local gcFunc = disposeFuncMap[ className ]
       if gcFunc then
-	 gcFunc = string.format( "function( val ) %s( val.__ptr ) end", gcFunc )
+	 --gcFunc = string.format( "function( val ) %s( val.__ptr ) end", gcFunc )
+	 gcFunc = string.format( "%s( self.__ptr )", gcFunc )
       end
       local methodTxt = ""
       if completionMode then
@@ -532,18 +552,38 @@ local function dumpConstructer(
       
       
       classFile:write( string.format( [[
-function libs.%s:new( ptr )
+function libs.%s:new( ptr, invalidDisposeFlag )
    if not ptr then
       return nil
    end
    local obj = {
+      __needDisposeFlag = not invalidDisposeFlag,
       __ptr = ptr,%s
+      disableDispose = function( self )
+         self.__needDisposeFlag = false
+      end
    }
-   setmetatable( obj, { __index = libs.%s, __gc = %s } )
+   setmetatable(
+      obj,
+      {
+         __index = function( tbl, key )
+	    local member = libs.%s[key]
+	    if member then
+	       return member
+	    end
+	    return tbl.__ptr[ key ]
+	 end,
+         __gc = function( self )
+            if self.__needDisposeFlag then
+               %s
+            end
+         end
+      }
+)
    return obj
 end
 
-]], className, methodTxt, className, gcFunc or "nil" ) )
+]], className, methodTxt, className, gcFunc or ";" ) )
    end
 end
 
@@ -597,14 +637,27 @@ local function dumpSwigData(
 libs.mk%s = function( tbl, length )
    local len = tbl
    local typeId = type( tbl )
+   local freeFlag = true
+   local __ptr = tbl
    if typeId == "table" then
       len = #tbl
-   elseif typeId == "userdata" then
-      len = length
+      __ptr = libclangcore.new_%s( len )
+   else
+      if length == nil then
+         len = 0
+      else
+         len = length
+      end
+      if typeId == "userdata" then
+         freeFlag = false
+      else
+         __ptr = libclangcore.new_%s( len )
+      end
    end
    local array = {
-      __length = #tbl,
-      __ptr = libclangcore.new_%s( len ),
+      __length = len,
+      __ptr = __ptr,
+      __freeFlag = freeFlag,
       getLength = function( self )
 	 return self.__length
       end,
@@ -619,7 +672,9 @@ libs.mk%s = function( tbl, length )
       end,
    }
    setmetatable( array, { __gc = function( self )
-                                   libclangcore.delete_%s( self.__ptr )
+                                   if self.__freeFlag then
+                                      libclangcore.delete_%s( self.__ptr )
+                                   end
                                  end } )
 
    if typeId == "table" then
@@ -629,7 +684,7 @@ libs.mk%s = function( tbl, length )
    end
    return array
 end
-]], arrayName, arrayName, arrayName, arrayName, arrayName, arrayName )
+]], arrayName, arrayName, arrayName, arrayName, arrayName, arrayName, arrayName )
 	 classFile:write( swigTxt )
       end
    )
@@ -740,7 +795,7 @@ end
 local function dumpCursor( clangIndex, path, options, dumpFunc, exInfo )
    local args = clang.mkCharArray( options )
    local transUnit = clang.core.clang_createTranslationUnitFromSourceFile(
-      clangIndex, path, args:getLength(), args:getPtr(), 0, nil );
+      clangIndex, path, args:getLength(), args:getPtr(), 0, nil )
 
    dumpCursorTU( transUnit, dumpFunc, exInfo )
 
@@ -748,7 +803,7 @@ local function dumpCursor( clangIndex, path, options, dumpFunc, exInfo )
 end
 
 local function dumpCursorPch( clangIndex, path, dumpFunc, exInfo )
-   local transUnit = clang.core.clang_createTranslationUnit( clangIndex, path );
+   local transUnit = clang.core.clang_createTranslationUnit( clangIndex, path )
 
    dumpCursorTU( transUnit, dumpFunc, exInfo )
 
@@ -808,7 +863,7 @@ if baseMode then
    mapPointerParam(
       analyzeInfo.pointerParamTypeSet,
       function( typeName, typeInfo, arrayName )
-	 local pointeeTxt = typeInfo[ 1 ]
+	 local pointeeTxt = string.gsub( typeInfo[ 1 ], "const", "" )
 	 local baseTxt = typeInfo[ 2 ]
 	 local baseTypeKind = typeInfo[ 3 ]
 	 local swigTxt = string.format(

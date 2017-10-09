@@ -86,7 +86,8 @@ $(CORE_SO): swig/libClangLua_wrap.o $(LUA_LIB)
 
 
 test: build
-	$(LUA_COMMAND) test.lua
+	$(LUA_COMMAND) test.lua | grep -v -e '0\.' -e ': 0x' > test-result
+	diff test-result test-result.expect
 
 install: build
 	$(MAKE) install-lib LUA_LIB_DIR=$(shell $(LUA_COMMAND) -e $(LUA_DIR_SCRIPT))
