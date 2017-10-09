@@ -1,12 +1,5 @@
 local clang = require( 'libclanglua.if' )
 
-local function getFileLocation( cursor )
-   local location = cursor:getCursorLocation()
-   return clang.getFileLocation(
-      location.__ptr, clang.core.clang_getFileLocation )
-end
-
-
 local useFastFlag = false
 local prevFile = nil
 local function visitFuncMain( cursor, parent, exInfo )
@@ -30,7 +23,7 @@ local function visitFuncMain( cursor, parent, exInfo )
    	     clang.getCursorKindSpelling( cursorKind ), cursorKind ) )
 
    if not exInfo.curFunc then
-      local cxfile, line = getFileLocation( cursor )
+      local cxfile, line = clang.getCursorLocation( cursor )
       if (cxfile and prevFile and not prevFile:isEqual( cxfile ) ) or
 	 (cxfile ~= prevFile and (not cxfile or not prevFile))
       then
@@ -87,7 +80,7 @@ local function visitFuncMainFast( cursor, parent, exInfo, appendInfo )
    local changeFileFlag = appendInfo[ 1 ]
    if not exInfo.curFunc then
       if changeFileFlag then
-   	 local cxfile, line = getFileLocation( cursor )
+   	 local cxfile, line = clang.getCursorLocation( cursor )
    	 print( "change file 3:", cxfile and cxfile:getFileName() or "", line )
       end
    end
