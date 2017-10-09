@@ -2,7 +2,7 @@
 #+AUTHOR: ifritJP
 #+STARTUP: nofold
 
-* Lua で C/C++ の構文解析
+* Lua で C/C++ の構文解析 (libclang の Lua binding)
 
 ここでは [[https://github.com/ifritJP/libclanglua][libclanglua]] を使って Lua から C/C++ の構文解析を行なう方法を紹介します。
 
@@ -64,7 +64,7 @@ TranslationUnit を返します。
 指定しない場合はディスクから解析対象のファイルを取得しますが、
 指定することでその情報を使って解析します。
 
-** AST の捜査
+** AST の走査
 
 コードを解析した結果は TranslationUnit を通して取得できます。
 
