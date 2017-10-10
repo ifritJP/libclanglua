@@ -235,9 +235,9 @@ libclang は構造体を扱いますが、Lua では構造体の概念があり�
 libclanglua では、 swig を利用しています。
 
 
-ソースコードを解析する際に使用する
+例えば、ソースコードを解析する際に使用する
 clangIndex:createTranslationUnitFromSourceFile() の第 5 引数には、
-struct CXUnsavedFile のポインタを指定します。
+struct CXUnsavedFile の配列を指定します。
 
 #+BEGIN_SRC Lua
 local options = { "-Iinc", "-DDEF" }
@@ -259,3 +259,30 @@ unsavedFile.Contents = fileContents
 unsavedFile.Length = #unsavedFile.Contents
 #+END_SRC
 
+なお、clangIndex:createTranslationUnitFromSourceFile() に与えるのは、
+struct CXUnsavedFile の配列です。
+
+一方 clang.core.CXUnsavedFile() は struct CXUnsavedFile の配列ではないため、
+別途 struct CXUnsavedFile の配列を生成する必要があります。
+
+struct CXUnsavedFile の配列は、
+clang.mkCXUnsavedFileArray( tbl, length ) で生成します。
+
+引数は tbl か length のどちらかを与えます。
+
+#+BEGIN_SRC Lua
+local unsavedFileArray = clang.mkCXUnsavedFileArray( unsavedFileTable )
+#+END_SRC
+
+引数の tbl には、clang.core.CXUnsavedFile() で生成した値を格納したテーブルを与えます。
+length には、生成する配列長を与えます。
+
+tbl を与えた場合は、テーブルのデータで初期化した struct CXUnsavedFile 配列を生成します。
+length を与えた場合は、データを初期化せずに struct CXUnsavedFile 配列を生成します。
+
+
+なお、tbl を指定した場合は length に nil を指定し、
+length を指定した場合は tbl に nil を指定します。
+
+生成した unsavedFileArray からポインタを得るには、
+unsavedFileArray:getPtr() を実行します。
