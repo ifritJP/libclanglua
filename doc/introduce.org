@@ -8,18 +8,19 @@
 
 libclanglua は libclang の Lua 用 binding です。
 
-以降は、 libclanglua のテスト用サンプル [[https://github.com/ifritJP/libclanglua/blob/master/src/test.lua][test.lua]] の内容について説明します。
+以降は、 libclanglua のテスト用サンプル [[https://github.com/ifritJP/libclanglua/blob/master/src/test.lua][test.lua]] の内容を元に説明します。
 
 なお、この test.lua を利用し、
 解析対象のテストコード [[https://github.com/ifritJP/libclanglua/blob/master/src/test/hoge.cpp][hoge.cpp]] を解析した結果が [[https://github.com/ifritJP/libclanglua/blob/master/src/test-result.expect][test-result.expect]] となります。
 
-libclanglua を使用して C/C++ で書いたソースコードを構文解析した情報を利用することで、
+C/C++ で書いたソースコードを libclanglua で構文解析して得られる情報は、
 さまざまな用途に活用できます。
 
-その活用例として、ソースコードタグシステム [[https://github.com/ifritJP/lctags][lctags]] を開発しています。
+ソースコードタグシステム [[https://github.com/ifritJP/lctags][lctags]] は、その活用例の一つです。
 
+** 基本
 
-** require
+*** require
 
 まずは require で libclanglua をロードします。
    
@@ -29,7 +30,7 @@ local clang = require( 'libclanglua.if' )
 
 以降 libclanglua モジュールは、clang として扱います。
 
-** index
+*** index
 
 解析するために、まずは index を生成します。
 
@@ -37,7 +38,7 @@ local clang = require( 'libclanglua.if' )
 local clangIndex = clang.createIndex( 0, 1 )
 #+END_SRC
 
-** 解析
+*** 解析
 
 index を使用して C ソースを解析します。
 
@@ -52,7 +53,7 @@ options には、コンパイルオプション文字列配列を指定します
 コンパイルオプションは clang のコンパイルオプションを指定する必要があります。
 clang のコンパイルオプションは、多くの場合 gcc と互換があります。
 
-clang.mkcharPArray() は、
+clang.mkcharPArray( options ) は、
 Lua の文字列配列(テーブル)から libclang に渡す文字列配列型データを生成する関数です。
 
 clangIndex:createTranslationUnitFromSourceFile() は、
@@ -64,7 +65,7 @@ TranslationUnit を返します。
 指定しない場合はディスクから解析対象のファイルを取得しますが、
 指定することでその情報を使って解析します。
 
-** AST の走査
+*** AST の走査
 
 コードを解析した結果は TranslationUnit を通して取得できます。
 
@@ -84,8 +85,7 @@ Lua の GC によって開放されます。
 
 *「TranslationUnit のオブジェクトが Cursor オブジェクトよりも先に開放されてはならない」*
 
-
-** 子要素の列挙
+*** 子要素の列挙
 
 AST( Abstract Syntax Tree) は、その名の通りツリー構造になっています。
 
@@ -160,4 +160,102 @@ nil の場合は、全ての CursorKind をリストに格納します。
 + ~CXChildVisit_Continue~ (1) を指定すると、 Cursor の直接の子階層の要素だけを格納します。
 + ~CXChildVisit_Recurse~ (2) を指定すると、Cursor の子階層以降の要素を全て格納します。
 
+
+** libclanglua のモジュール構成
+
+libclanglua は次のモジュールで構成しています。
+
+- libclanglua/core.so
+- libclanglua/if.lua 
+
+core.so は、libclang を Lua からアクセスできるようにする Glue です。
+swig で生成しています。
+
+この core.so は、
+libclang の C API をそのまま Lua からアクセスできるようにしているだけなので、
+オブジェクトの dispose などを明示的に行なう必要があり、使い勝手がいまいちです。
+if.lua は、その dispose などを Lua の gc を利用することで、
+明示的に行なわなくても良いようにラッピングしています。
+また、 Index や TranslationUnit のオブジェクトごとにメソッドをカプセル化したり、
+データ変換を行なっています。
+
+if.lua の各メソッド定義には、 clang のコメントをそのまま付加しているので、
+if.lua を見れば各関数の仕様確認や目的の関数を見つけることができます。
+
+ただし if.lua の内容を確認する場合、いくつか注意すべきことがあります。
+
+たとえば、 Cursor の文字列表現を取得するには Cursor:getCursorSpelling() を使用しますが、
+この Cursor:getCursorSpelling() を if.lua で確認すると、次の定義が見つかります。
+
+#+BEGIN_SRC Lua
+--[==[
+/**
+ * \brief Retrieve a name for the entity referenced by this cursor.
+ */
+
+ @param __arg0 CXCursor
+ @return CXString
+]==]
+function libs.CXCursor:getCursorSpelling(  )
+  return libs.cx2string( libclangcore.clang_getCursorSpelling( self.__ptr ) )
+end
+#+END_SRC
+
+コメントは clang の doxygen 形式コメントをそのまま引用しています。
+
+コメントを見ると引数 __arg0 が CXCursor であると記載がありますが、
+Lua から Cursor:getCursorSpelling() をコールする場合、引数に CXCursor を指定しません。
+これは、メソッド呼び出しである ':' を使用してコールしているので、
+Lua によって CXCursor が self として与えられているためです。
+
+また、戻り値が CXString とありますが、
+Lua で Cursor:getCursorSpelling() の戻り値を処理する際には、
+CXString ではなく通常の文字列となります。
+
+これは、Cursor:getCursorSpelling() の処理で CXString から Lua の文字列に変換する処理
+cx2string を実行しているためです。
+
+if.lua では、戻り値が CXString のものは if.lua 内部で Lua の文字列に変換してから
+返すようにしています。
+
+
+#+BEGIN_SRC Lua
+local clang = require( 'libclanglua.if' )
+#+END_SRC
+
+上記の require は if.lua をロードします。
+このとき clang.core にアクセスすることで core.so に直接アクセスできます。
+
+** libclang の構造体
+
+libclang は構造体を扱いますが、Lua では構造体の概念がありません。
+
+ここでは、Lua で libclang の構造体を扱う方法について説明します。
+
+libclanglua では、 swig を利用しています。
+
+
+ソースコードを解析する際に使用する
+clangIndex:createTranslationUnitFromSourceFile() の第 5 引数には、
+struct CXUnsavedFile のポインタを指定します。
+
+#+BEGIN_SRC Lua
+local options = { "-Iinc", "-DDEF" }
+local args = clang.mkcharPArray( options )
+local transUnit = clangIndex:createTranslationUnitFromSourceFile(
+      "hoge.cpp", args:getLength(), args:getPtr(), 0, nil );
+#+END_SRC
+
+Lua から struct CXUnsavedFile を生成するには、
+clang.core.CXUnsavedFile() を実行すると、
+struct CXUnsavedFile のユーザデータを生成して返します。
+
+このユーザデータには、次のように struct CXUnsavedFile のメンバにアクセスできます。
+
+#+BEGIN_SRC Lua
+local unsavedFile = clang.core.CXUnsavedFile()
+unsavedFile.Filename = targetFullPath
+unsavedFile.Contents = fileContents
+unsavedFile.Length = #unsavedFile.Contents
+#+END_SRC
 
