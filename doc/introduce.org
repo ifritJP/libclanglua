@@ -32,7 +32,7 @@ local clang = require( 'libclanglua.if' )
 
 *** index
 
-解析するために、まずは index を生成します。
+解析するために、index を生成します。
 
 #+BEGIN_SRC Lua
 local clangIndex = clang.createIndex( 0, 1 )
@@ -286,3 +286,4 @@ length を指定した場合は tbl に nil を指定します。
 
 生成した unsavedFileArray からポインタを得るには、
 unsavedFileArray:getPtr() を実行します。
+
