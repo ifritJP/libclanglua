@@ -62,7 +62,7 @@ TranslationUnit を返します。
 
 なお、clangIndex:createTranslationUnitFromSourceFile() の第 4、5 引数は、
 解析対象のファイル情報を渡します。
-指定しない場合はディスクから解析対象のファイルを取得しますが、
+指定しない場合はストレージから解析対象のファイルを取得しますが、
 指定することでその情報を使って解析します。
 
 *** AST の走査
@@ -116,7 +116,7 @@ root:visitChildren() の第 1 引数の visitFuncMain は、
 local function visitFuncMain( cursor, parent, exInfo )
 #+END_SRC
 
-visitFuncMain() は 3 つの引数を持っています。
+visitFuncMain() には、次の3 つの引数が渡されてコールされます。
 
 第 1 引数 cursor は、列挙された子要素の情報を保持する Cursor です。
 
@@ -137,11 +137,11 @@ cursor:getCursorKind() は、その要素の種別を返します。
 cursor:getCursorSpelling() は、その要素のコード上の文字列表現です。
 
 なお、 cursor に対してさらに cursor:visitChildren() を呼び出すことで、
-子要素が列挙されます。
+その cursor の子要素が列挙されます。
 
-なお visitFuncMain() で返す値で、 visitChildren() の動作を制御します。
+visitFuncMain() が返す値で、 visitChildren() の動作を制御します。
 
-+ ~CXChildVisit_Break~ (0) を返すと以降の子要素の列挙はせず、
++ ~CXChildVisit_Break~ (0) を返すと以降の子要素の列挙はしない。
 + ~CXChildVisit_Continue~ (1) を返すと、現在の子要素と同じ階層の子要素の列挙を継続します。
 + ~CXChildVisit_Recurse~ (2) を指定すると、現在の子階層以降の要素の列挙します。
 
@@ -224,7 +224,7 @@ local clang = require( 'libclanglua.if' )
 #+END_SRC
 
 上記の require は if.lua をロードします。
-このとき clang.core にアクセスすることで core.so に直接アクセスできます。
+ロード後は、clang.core にアクセスすることで core.so に直接アクセスできます。
 
 ** libclang の構造体
 
@@ -232,10 +232,9 @@ libclang は構造体を扱いますが、Lua では構造体の概念があり�
 
 ここでは、Lua で libclang の構造体を扱う方法について説明します。
 
-libclanglua では、 swig を利用しています。
+例として、ソースコードを解析する際に使用する
+clangIndex:createTranslationUnitFromSourceFile() を挙げます。
 
-
-例えば、ソースコードを解析する際に使用する
 clangIndex:createTranslationUnitFromSourceFile() の第 5 引数には、
 struct CXUnsavedFile の配列を指定します。
 
@@ -246,11 +245,14 @@ local transUnit = clangIndex:createTranslationUnitFromSourceFile(
       "hoge.cpp", args:getLength(), args:getPtr(), 0, nil );
 #+END_SRC
 
-Lua から struct CXUnsavedFile を生成するには、
-clang.core.CXUnsavedFile() を実行すると、
+Lua から struct CXUnsavedFile を生成するため、
+clang.core.CXUnsavedFile() を実行します。
+
+clang.core.CXUnsavedFile() は、
 struct CXUnsavedFile のユーザデータを生成して返します。
 
-このユーザデータには、次のように struct CXUnsavedFile のメンバにアクセスできます。
+このユーザデータに対して次のようにアクセスすることで、
+struct CXUnsavedFile のメンバにアクセスできます。
 
 #+BEGIN_SRC Lua
 local unsavedFile = clang.core.CXUnsavedFile()
@@ -262,7 +264,8 @@ unsavedFile.Length = #unsavedFile.Contents
 なお、clangIndex:createTranslationUnitFromSourceFile() に与えるのは、
 struct CXUnsavedFile の配列です。
 
-一方 clang.core.CXUnsavedFile() は struct CXUnsavedFile の配列ではないため、
+一方 clang.core.CXUnsavedFile() が生成するのは struct CXUnsavedFile のユーザデータであり、
+struct CXUnsavedFile の配列ではないため、
 別途 struct CXUnsavedFile の配列を生成する必要があります。
 
 struct CXUnsavedFile の配列は、
