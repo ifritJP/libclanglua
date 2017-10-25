@@ -62,7 +62,7 @@ TranslationUnit を返します。
 
 なお、clangIndex:createTranslationUnitFromSourceFile() の第 4、5 引数は、
 解析対象のファイル情報を渡します。
-指定しない場合はストレージから解析対象のファイルを取得しますが、
+指定しない場合はディスクから解析対象のファイルを取得しますが、
 指定することでその情報を使って解析します。
 
 *** AST の走査
