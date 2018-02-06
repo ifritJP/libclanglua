@@ -120,9 +120,9 @@ visitFuncMain() には、次の3 つの引数が渡されてコールされま�
 
 第 1 引数 cursor は、列挙された子要素の情報を保持する Cursor です。
 
-第 2 引数 parent は、cursor の親の要素の情報を保持する Cursor です。
+第 2 引数 parent は、第一引数 cursor の親要素の情報を保持する Cursor です。
 
-第 3 引数 exInfo は、visitFuncMain() の 第 2 引数で渡した値が入ります。
+第 3 引数 exInfo は、visitChildren() の 第 2 引数で渡した値が入ります。
 
 
 #+BEGIN_SRC Lua
