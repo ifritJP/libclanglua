@@ -15,8 +15,14 @@ libclanglua は libclang の Lua 用 binding です。
 
 C/C++ で書いたソースコードを libclanglua で構文解析して得られる情報は、
 さまざまな用途に活用できます。
-
 ソースコードタグシステム [[https://github.com/ifritJP/lctags][lctags]] は、その活用例の一つです。
+
+libclanglua については、次も参考にしてください。
+
+- libclang で演算子を特定する方法
+  - https://qiita.com/dwarfJP/items/48d5290e29eb8e7dc3a4
+- libclang の AST(Abstract Syntax Tree)
+  
 
 ** 基本
 

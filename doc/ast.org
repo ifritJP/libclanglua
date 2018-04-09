@@ -1,0 +1,205 @@
+# -*- coding:utf-8 -*-
+#+AUTHOR: ifritJP
+#+STARTUP: nofold
+
+#+TITLE: libclang の AST(Abstract Syntax Tree)
+
+* libclang とは
+
+libclang は clang の機能にアクセスするためのライブラリです。
+
+libclang を利用することで C/C++ のソースコード解析などが出来ます。
+
+* libclang の CXCursor 
+
+libclang で C/C++ のソースコードを解析すると、
+そのソースコードの AST (Abstract Syntax Tree) にアクセスできます。
+
+この AST には CXCursor 構造体を通してアクセスします。
+AST にアクセスすることで、解析対象のソースコードにどのような関数が定義されていて、
+その関数内でどのような変数にアクセスしているかや、
+どのような関数をコールしているか、などを簡単に調べることができます。
+
+** CXCursor とは
+
+CXCursor は、 libclang で clang の AST にアクセスするための構造体です。
+
+clang 内部では AST を C++ のクラスで管理していますが、
+ライブラリのインタフェースではクラスを直接扱えないため、
+CXCursor 構造体でラッピングしています。
+
+#+BEGIN_SRC txt
+アプリ -> CXCursor (C) -> libclang (C/C++)-> AST (C++)
+#+END_SRC
+
+** 木構造
+
+AST (Abstract Syntax Tree)は、その名の通り木構造になっています。
+
+例えば次のようなソースを解析すると、
+
+#+BEGIN_SRC c
+int func1( void ) {
+  return 0;
+}
+int func2( int arg1, int arg2 ) {
+  return arg1 + arg2;
+}
+#+END_SRC
+
+次のような情報が AST の木構造に格納されます。
+
+#+BEGIN_SRC dot :file plantuml_ast_sample.png :cache yes
+digraph {
+len = 1;
+dpi=80;
+rankdir = "LR";
+root -> FunctionDecl_func1;
+FunctionDecl_func1 -> CompoundStmt_func1;
+CompoundStmt_func1 -> ReturnStmt_func1;
+ReturnStmt_func1 -> IntegerLiteral_0;
+
+FunctionDecl_func1 [label="FunctionDecl (func1)"];
+CompoundStmt_func1 [label="CompoundStmt"];
+ReturnStmt_func1 [label="ReturnStmt"];
+IntegerLiteral_0 [label="IntegerLiteral (0)"];
+
+root -> FunctionDecl_func2;
+FunctionDecl_func2 -> ParmDecl_arg1
+FunctionDecl_func2 -> ParmDecl_arg2
+FunctionDecl_func2 -> CompoundStmt_func2;
+CompoundStmt_func2 -> ReturnStmt_func2
+ReturnStmt_func2 -> BinaryOperator
+BinaryOperator -> UnexposedExpr_arg1
+UnexposedExpr_arg1 -> DeclRefExpr_arg1
+BinaryOperator -> UnexposedExpr_arg2
+UnexposedExpr_arg2 -> DeclRefExpr_arg2
+
+
+FunctionDecl_func2 [label="FunctionDecl (func2)"];
+ParmDecl_arg1 [label="ParmDecl (arg1)"];
+ParmDecl_arg2 [label="ParmDecl (arg2)"];
+CompoundStmt_func2 [label="CompoundStmt"];
+ReturnStmt_func2 [label="ReturnStmt"];
+UnexposedExpr_arg1 [label="UnexposedExpr"];
+UnexposedExpr_arg2 [label="UnexposedExpr"];
+DeclRefExpr_arg1 [label="DeclRefExpr (arg1)"];
+DeclRefExpr_arg2 [label="DeclRefExpr (arg2)"];
+
+}
+#+END_SRC
+
+上記の root は木構造の先頭を意味し、root から各ノードを辿ることで、
+解析したソースの構造を把握することができます。
+
+statement, expression, literal 等でノードが生成されます。
+
+このノードが CXCursor そのものです。
+
+** CXCursor からアクセス可能な情報
+
+CXCursor を libclang が提供する関数に与えることで、
+さまざまな情報を取得することが可能です。
+
+例えば、上記 AST の各ノードの種別(FunctionDecl, CompoundStmt, ReturnStmt 等)は、
+CXCursor:getCursorKind() で取得します。
+
+CXCursor から取得可能な代表的な情報を挙げます。
+- CursorKind (種別)
+  - CXCursor:getCursorKind()
+- 文字列 (FunctionDecl であればその関数名)
+  - CXCursor:getCursorSpelling()
+- CXType (型情報)
+  - CXCursor:getCursorType()
+- ソース上の位置
+  - CXCursor:getCursorLocation()
+- DeclRefExpr などの参照元 CXCursor
+  - CXCursor:getCursorReferenced()
+- ハッシュ
+  - CXCursor:hashCursor()
+
+** 型情報 CXType
+
+CXCursor から、そのノードの型情報(CXType)を取得できます。
+
+例えば引数宣言 ParmDecl の型情報は、宣言している引数の型を示します。
+
+具体的には int arg1 の型情報 CXType は、 int を示す情報となります。
+
+なお、C 言語の変数にポインタや配列があるように、
+型情報 CXType はそれらポインタや配列の情報を含みます。
+
+例えば int * pVal の型情報 CXType は、 int * を示す情報となり、
+これは int val の型情報 CXType とは異なります。
+
+C 言語の変数は int 等の primitive な型だけでなく、構造体等の型を持つこともできます。
+その場合、CXType は構造体の型を示すことになります。
+
+#+BEGIN_SRC c
+struct VALUE {
+  int val;
+};
+struct VALUE val1;
+#+END_SRC
+
+例えば上記 val1 の型は構造体 VALUE です。
+このとき AST は次のようになります。
+
+#+BEGIN_SRC dot :file plantuml_ast_sample_type.png :cache yes
+digraph {
+len = 1;
+dpi=80;
+rankdir = "LR";
+root -> StructDecl;
+StructDecl -> FieldDecl;
+root -> VarDecl;
+VarDecl -> TypeRef;
+
+StructDecl [ label="StructDecl (VALUE)"];
+FieldDecl [ label="FieldDecl (val)"];
+VarDecl [ label="VarDecl (val1)" ];
+}
+#+END_SRC
+
+ここで VarDecl の CXType は、構造体 VALUE を示します。
+
+VarDecl の CXType が具体的にどのような型であるかは、
+次のように処理するとこで得られます。
+- CXType:getTypeDeclaration() を使ってその型を宣言している CXCursor を取得
+- その CXCursor 情報を確認する
+
+上記サンプルの場合、 CXType:getTypeDeclaration() で得られる CXCursor は、
+VALUE の StructDecl となります。
+
+#+BEGIN_SRC dot :file plantuml_ast_sample_type_decl.png :cache yes
+digraph {
+dpi=80;
+rankdir = "LR";
+root -> StructDecl;
+StructDecl -> FieldDecl;
+root -> VarDecl;
+CXType -> StructDecl [ label = "getTypeDeclaration()", style = "dashed" ];
+VarDecl -> CXType [ label = "getCursorType()", style = "dashed" ];
+VarDecl -> TypeRef;
+
+{rank=same; StructDecl; VarDecl; }
+{rank=sink; TypeRef; FieldDecl }
+
+StructDecl [ label="StructDecl (VALUE)"];
+FieldDecl [ label="FieldDecl (val)"];
+VarDecl [ label="VarDecl (val1)" ];
+CXType [ shape=box ];
+}
+#+END_SRC
+
+CXCursor はハッシュ値を持っています。
+CXCursor が同一かどうかは、ハッシュ値で比較するか
+CXCursor:equalCursors() 関数で確認出来ます。
+
+* 動かしてみよう
+
+CXCursor と CXType の関係さえ分かれば、
+後は実際に libclang を使って AST を生成し、
+AST の中身を見てみるのが一番理解が早いと思います。
+
+その際 [[https://github.com/ifritJP/libclanglua][libclanglua]] が役に立てれば嬉しいです。
