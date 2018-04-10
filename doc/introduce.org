@@ -20,9 +20,10 @@ C/C++ で書いたソースコードを libclanglua で構文解析して得ら�
 libclanglua については、次も参考にしてください。
 
 - libclang で演算子を特定する方法
-  - https://qiita.com/dwarfJP/items/48d5290e29eb8e7dc3a4
+https://qiita.com/dwarfJP/items/48d5290e29eb8e7dc3a4
+
 - libclang の AST(Abstract Syntax Tree)
-  
+https://qiita.com/dwarfJP/items/c003acc108d1320bce68  
 
 ** 基本
 
@@ -289,7 +290,7 @@ length には、生成する配列長を与えます。
 tbl を与えた場合は、テーブルのデータで初期化した struct CXUnsavedFile 配列を生成します。
 length を与えた場合は、データを初期化せずに struct CXUnsavedFile 配列を生成します。
 
-
+n
 なお、tbl を指定した場合は length に nil を指定し、
 length を指定した場合は tbl に nil を指定します。
 

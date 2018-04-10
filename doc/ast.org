@@ -105,18 +105,19 @@ CXCursor を libclang が提供する関数に与えることで、
 CXCursor:getCursorKind() で取得します。
 
 CXCursor から取得可能な代表的な情報を挙げます。
+
 - CursorKind (種別)
-  - CXCursor:getCursorKind()
+  + CXCursor:getCursorKind()
 - 文字列 (FunctionDecl であればその関数名)
-  - CXCursor:getCursorSpelling()
+  + CXCursor:getCursorSpelling()
 - CXType (型情報)
-  - CXCursor:getCursorType()
+  + CXCursor:getCursorType()
 - ソース上の位置
-  - CXCursor:getCursorLocation()
+  + CXCursor:getCursorLocation()
 - DeclRefExpr などの参照元 CXCursor
-  - CXCursor:getCursorReferenced()
+  + CXCursor:getCursorReferenced()
 - ハッシュ
-  - CXCursor:hashCursor()
+  + CXCursor:hashCursor()
 
 ** 型情報 CXType
 
@@ -165,6 +166,7 @@ VarDecl [ label="VarDecl (val1)" ];
 
 VarDecl の CXType が具体的にどのような型であるかは、
 次のように処理するとこで得られます。
+
 - CXType:getTypeDeclaration() を使ってその型を宣言している CXCursor を取得
 - その CXCursor 情報を確認する
 
